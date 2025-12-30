@@ -143,6 +143,4 @@ Wallet 5: 0x5e6f...63Bd - 11.2 MON
 
 MIT License - Úsalo libremente bajo tu propio riesgo.
 
-## ⚠️ Disclaimer
 
-Este bot es para fines educativos. El uso de bots puede estar en contra de los términos de servicio de algunos launchpads. Úsalo bajo tu propia responsabilidad.
