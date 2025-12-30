@@ -1,0 +1,22 @@
+{
+  "name": "monad-nft-sniper",
+  "version": "2.0.0",
+  "description": "Advanced multi-wallet NFT minting bot for Monad mainnet",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js"
+  },
+  "keywords": ["nft", "monad", "mint", "bot", "magic-eden", "opensea"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "web3": "^4.3.0",
+    "ethers": "^6.9.0",
+    "dotenv": "^16.3.1",
+    "axios": "^1.6.2",
+    "chalk": "^4.1.2",
+    "ora": "^5.4.1",
+    "inquirer": "^8.2.5"
+  }
+}
