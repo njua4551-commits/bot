@@ -8,6 +8,7 @@ const WalletManager = require('./src/wallets/manager');
 const MintDetector = require('./src/mint/detector');
 const MintExecutor = require('./src/mint/executor');
 const MintScheduler = require('./src/mint/scheduler');
+const AdaptiveMintExecutor = require('./src/mint/adaptive-executor');
 const Helpers = require('./src/utils/helpers');
 
 // Banner
@@ -43,6 +44,16 @@ async function main() {
 
     // Preguntas interactivas
     const answers = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'analyzeMode',
+        message: '¿Cómo quieres analizar el contrato?',
+        choices: [
+          { name: '🧠 Modo Adaptativo (Analiza transacciones recientes)', value: 'adaptive' },
+          { name: '🔧 Modo Manual (Detección estándar)', value: 'manual' }
+        ],
+        default: 'adaptive'
+      },
       {
         type: 'list',
         name: 'mode',
@@ -88,12 +99,9 @@ async function main() {
     ]);
 
     console.log(chalk.cyan('\n' + '='.repeat(60)));
-    console.log(chalk.yellow('🔍 Analizando contrato NFT...'));
+    console.log(chalk.yellow(`🔍 Analizando contrato NFT (${answers.analyzeMode === 'adaptive' ? 'Modo Adaptativo' : 'Modo Manual'})...`));
     console.log(chalk.cyan('='.repeat(60) + '\n'));
 
-    // Detectar configuración del contrato
-    const detector = new MintDetector(provider);
-    
     // Verificar que el contrato existe
     const code = await provider.getCode(answers.contractAddress);
     if (code === '0x') {
@@ -101,15 +109,51 @@ async function main() {
     }
     console.log(chalk.green('✓ Contrato encontrado'));
 
-    // Detectar funciones y precios
-    const mintFunction = await detector.detectMintFunction(answers.contractAddress);
-    const mintPrice = await detector.getMintPrice(answers.contractAddress);
-    await detector.getSupplyInfo(answers.contractAddress);
-    await detector.checkMintStatus(answers.contractAddress);
+    let executor;
+    let mintPrice;
+    
+    if (answers.analyzeMode === 'adaptive') {
+      // MODO ADAPTATIVO: Analiza transacciones recientes
+      executor = new AdaptiveMintExecutor(provider, answers.contractAddress);
+      
+      const analyzed = await executor.analyze(50);
+      
+      if (!analyzed) {
+        console.log(chalk.yellow('⚠️ Modo adaptativo falló, cambiando a modo manual...\n'));
+        answers.analyzeMode = 'manual';
+      } else {
+        const pattern = executor.getPattern();
+        mintPrice = pattern.avgPriceWei;
+        
+        // Mostrar información adicional del análisis
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    if (answers.analyzeMode === 'manual') {
+      // MODO MANUAL: Detección estándar
+      const detector = new MintDetector(provider);
+
+      // Detectar funciones y precios
+      const mintFunction = await detector.detectMintFunction(answers.contractAddress);
+      mintPrice = await detector.getMintPrice(answers.contractAddress);
+      await detector.getSupplyInfo(answers.contractAddress);
+      await detector.checkMintStatus(answers.contractAddress);
+      
+      // Crear executor estándar
+      executor = new MintExecutor(
+        provider,
+        answers.contractAddress,
+        mintFunction,
+        mintPrice
+      );
+    }
 
     // Mostrar estimación de costos
     const wallets = walletManager.getAllWallets();
-    await walletManager.estimateTotalCost(mintPrice, answers.quantity);
+    if (mintPrice) {
+      await walletManager.estimateTotalCost(mintPrice, answers.quantity);
+    }
 
     // Confirmación final
     const { confirm } = await inquirer.prompt([
@@ -126,16 +170,10 @@ async function main() {
       process.exit(0);
     }
 
-    // Crear executor
-    const executor = new MintExecutor(
-      provider,
-      answers.contractAddress,
-      mintFunction,
-      mintPrice
-    );
+    // Executor ya fue creado en el análisis
 
     console.log(chalk.cyan('\n' + '='.repeat(60)));
-    console.log(chalk.green.bold('🎯 INICIANDO PROCESO DE MINT'));
+    console.log(chalk.green.bold(`🎯 INICIANDO PROCESO DE MINT (${answers.analyzeMode === 'adaptive' ? 'ADAPTATIVO' : 'MANUAL'})`));
     console.log(chalk.cyan('='.repeat(60)));
 
     // Ejecutar según el modo
